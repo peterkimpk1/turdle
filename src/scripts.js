@@ -1,6 +1,6 @@
 import './styles.css';
 import './assets/turdle-turtle.png';
-import { words } from './words.js';
+var words = [];
 
 // Global Variables
 var winningWord = '';
@@ -21,19 +21,21 @@ var letterKey = document.querySelector('#key-section');
 var rules = document.querySelector('#rules-section');
 var stats = document.querySelector('#stats-section');
 var gameOverBox = document.querySelector('#game-over-section');
+var gameLostBox = document.querySelector('#game-lost-section');
 var gameOverGuessCount = document.querySelector('#game-over-guesses-count');
 var gameOverGuessGrammar = document.querySelector('#game-over-guesses-plural');
-
+var totalGames = document.getElementById('stats-total-games')
+var totalCorrect = document.getElementById('stats-percent-correct')
+var averageGuesses = document.getElementById('stats-average-guesses')
 // Event Listeners
 window.addEventListener('load', setGame);
 
-for (var i = 0; i < inputs.length; i++) {
-  inputs[i].addEventListener('keyup', function () { moveToNextInput(event) });
-}
-
-for (var i = 0; i < keyLetters.length; i++) {
+inputs.forEach((input,i) => {
+  inputs[i].addEventListener('keyup', function () { moveToNextInput(event) })
+}) 
+keyLetters.forEach((keyLetter,i) => {
   keyLetters[i].addEventListener('click', function () { clickLetter(event) });
-}
+})
 
 guessButton.addEventListener('click', submitGuess);
 
@@ -45,31 +47,34 @@ viewStatsButton.addEventListener('click', viewStats);
 
 // Functions
 function setGame() {
+  fetch("http://localhost:3001/api/v1/words").then(response => response.json()).then(e => {
+    winningWord = e[getRandomWord()]
+    console.log(winningWord)
+    words.push(e)
+  })
   currentRow = 1;
-  winningWord = getRandomWord();
   updateInputPermissions();
 }
 
 function getRandomWord() {
   var randomIndex = Math.floor(Math.random() * 2500);
-  return words[randomIndex];
+  return randomIndex;
 }
 
 function updateInputPermissions() {
-  for (var i = 0; i < inputs.length; i++) {
+  inputs.forEach((input,i) => {
     if (!inputs[i].id.includes(`-${currentRow}-`)) {
       inputs[i].disabled = true;
-    } else {
+    } 
+    else {
       inputs[i].disabled = false;
     }
-  }
-
+  })
   inputs[0].focus();
 }
 
 function moveToNextInput(e) {
   var key = e.keyCode || e.charCode;
-
   if (key !== 8 && key !== 46) {
     var indexOfNext = parseInt(e.target.id.split('-')[2]) + 1;
     inputs[indexOfNext].focus();
@@ -80,13 +85,12 @@ function clickLetter(e) {
   var activeInput = null;
   var activeIndex = null;
 
-  for (var i = 0; i < inputs.length; i++) {
+  inputs.forEach((input,i) => {
     if (inputs[i].id.includes(`-${currentRow}-`) && !inputs[i].value && !activeInput) {
       activeInput = inputs[i];
       activeIndex = i;
     }
-  }
-
+  })
   activeInput.value = e.target.innerText;
   inputs[activeIndex + 1].focus();
 }
@@ -97,7 +101,14 @@ function submitGuess() {
     compareGuess();
     if (checkForWin()) {
       setTimeout(declareWinner, 1000);
-    } else {
+    }
+    else if (currentRow === 5) {
+      viewGameLostMessage();
+      recordGameStats()
+      updateStats();
+      setTimeout(startNewGame, 4000);
+    } 
+    else {
       changeRow();
     }
   } else {
@@ -107,14 +118,12 @@ function submitGuess() {
 
 function checkIsWord() {
   guess = '';
-
-  for (var i = 0; i < inputs.length; i++) {
+  inputs.forEach((input,i) => {
     if (inputs[i].id.includes(`-${currentRow}-`)) {
       guess += inputs[i].value;
     }
-  }
-
-  return words.includes(guess);
+  })
+  return words[0].includes(guess);
 }
 
 function compareGuess() {
@@ -171,6 +180,7 @@ function changeRow() {
 
 function declareWinner() {
   recordGameStats();
+  updateStats();
   changeGameOverText();
   viewGameOverMessage();
   setTimeout(startNewGame, 4000);
@@ -178,6 +188,16 @@ function declareWinner() {
 
 function recordGameStats() {
   gamesPlayed.push({ solved: true, guesses: currentRow });
+}
+
+function updateStats() {
+  totalGames.innerText = `${gamesPlayed.length}`
+  totalCorrect.textContent = `${100 * (gamesPlayed.filter(game => game.solved === true).length)/gamesPlayed.length}`
+  const total = gamesPlayed.reduce((acc,game) => {
+    acc += game.guesses
+    return acc
+  },0)
+  averageGuesses.textContent = `${total / (gamesPlayed.length * 6)}`
 }
 
 function changeGameOverText() {
@@ -228,6 +248,7 @@ function viewGame() {
   rules.classList.add('collapsed');
   stats.classList.add('collapsed');
   gameOverBox.classList.add('collapsed')
+  gameLostBox.classList.add('collapsed')
   viewGameButton.classList.add('active');
   viewRulesButton.classList.remove('active');
   viewStatsButton.classList.remove('active');
@@ -245,6 +266,12 @@ function viewStats() {
 
 function viewGameOverMessage() {
   gameOverBox.classList.remove('collapsed')
+  letterKey.classList.add('hidden');
+  gameBoard.classList.add('collapsed');
+}
+
+function viewGameLostMessage() {
+  gameLostBox.classList.remove('collapsed')
   letterKey.classList.add('hidden');
   gameBoard.classList.add('collapsed');
 }
